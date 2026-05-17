@@ -1,6 +1,6 @@
+import "./config/env.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import dotenv from "dotenv";
 import express from "express";
 import connectDB from "./config/db.js";
 import authRoute from "./routes/authRoute.js";
@@ -10,7 +10,9 @@ import cartRoutes from "./routes/cartRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+
 dotenv.config();
+
 
 const app = express();
 const NODE_ENV = process.env.NODE_ENV || "development";
