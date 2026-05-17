@@ -18,6 +18,7 @@ const isDev = NODE_ENV === "development";
 /* ===============================
    🔌 DATABASE CONNECTION (SAFE)
 ================================ */
+///////////////////////////safe side
 let isConnected = false;
 
 app.use(async (req, res, next) => {

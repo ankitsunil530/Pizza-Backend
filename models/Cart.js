@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const cartItemSchema = new mongoose.Schema({
   pizzaId: { type: mongoose.Schema.Types.ObjectId, ref: "Pizza" },
   name: String,
+  image: String,
   size: Object,
   crust: Object,
   toppings: Array,

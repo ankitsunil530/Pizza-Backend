@@ -1,6 +1,6 @@
 import Order from "../models/Order.js";
 import User from "../models/User.js";
-
+// Admin dashboard stats
 export const getAdminStats = async (req, res) => {
   const orders = await Order.countDocuments();
   const users = await User.countDocuments();
