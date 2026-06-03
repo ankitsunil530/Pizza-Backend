@@ -116,7 +116,7 @@ app.get("/api/ping", (req, res) => {
 
 app.get("/", (req, res) => {
   res.status(200).json({
-    message: "Task Management Backend is running",
+    message: "Pizza Backend is running",
     environment: NODE_ENV,
   });
 });
