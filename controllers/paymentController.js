@@ -1,3 +1,4 @@
+
 import crypto from "crypto";
 import razorpay, { assertRazorpayReady, getRazorpayMode } from "../config/razorpay.js";
 import Cart from "../models/Cart.js";
@@ -5,7 +6,6 @@ import Order from "../models/Order.js";
 
 export const createRazorpayOrder = async (req, res) => {
   try {
-
     assertRazorpayReady();
 
     const { orderId } = req.body;
