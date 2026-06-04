@@ -1,9 +1,11 @@
 import Order from "../models/Order.js";
 import Cart from "../models/Cart.js";
+import Coupon from "../models/Coupon.js";
+import { evaluateCoupon } from "./couponController.js";
 
 export const createOrder = async (req, res) => {
   try {
-    const { address, phone, paymentMethod = "cod", deliveryFee = 0 } = req.body;
+    const { address, phone, paymentMethod = "cod", deliveryFee = 0, couponCode } = req.body;
 
     if (!address || address.trim().length < 12) {
       return res.status(400).json({ error: "Complete delivery address is required" });
@@ -25,13 +27,33 @@ export const createOrder = async (req, res) => {
 
     const subtotal = cart.items.reduce((sum, item) => sum + item.price * item.qty, 0);
     const safeDeliveryFee = Math.max(0, Number(deliveryFee) || 0);
-    const totalAmount = subtotal + safeDeliveryFee;
+
+    // Re-validate and recompute any coupon discount on the server. The client
+    // cannot be trusted to send a discount amount, so we look the coupon up
+    // fresh and run the same engine used by the validate endpoint.
+    let discount = 0;
+    let appliedCoupon = null;
+    if (couponCode && String(couponCode).trim()) {
+      const coupon = await Coupon.findOne({
+        code: String(couponCode).trim().toUpperCase(),
+      });
+      const result = evaluateCoupon(coupon, subtotal);
+      if (!result.ok) {
+        return res.status(400).json({ error: result.reason });
+      }
+      discount = result.discount;
+      appliedCoupon = coupon;
+    }
+
+    const totalAmount = subtotal - discount + safeDeliveryFee;
 
     const order = await Order.create({
       user: req.user._id,
       items: cart.items.map((item) => item.toObject()),
       subtotal,
       deliveryFee: safeDeliveryFee,
+      discount,
+      couponCode: appliedCoupon ? appliedCoupon.code : null,
       totalAmount,
       address: address.trim(),
       phone: String(phone),
@@ -39,6 +61,11 @@ export const createOrder = async (req, res) => {
       paymentStatus: paymentMethod === "cod" ? "cod" : "pending",
       orderStatus: "placed",
     });
+
+    if (appliedCoupon) {
+      appliedCoupon.usedCount += 1;
+      await appliedCoupon.save();
+    }
 
     if (paymentMethod === "cod") {
       cart.items = [];

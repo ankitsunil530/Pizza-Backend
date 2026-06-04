@@ -11,6 +11,7 @@ import orderRoutes from "./routes/orderRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import dotenv from "dotenv";
+import couponRoutes from "./routes/couponRoutes.js";
 dotenv.config();
 
 
@@ -19,7 +20,7 @@ const NODE_ENV = process.env.NODE_ENV || "development";
 const isDev = NODE_ENV === "development";
 
 /* ===============================
-   🔌 DATABASE CONNECTION (SAFE)
+   ðŸ”Œ DATABASE CONNECTION (SAFE)
 ================================ */
 ///////////////////////////safe side
 let isConnected = false;
@@ -31,7 +32,7 @@ app.use(async (req, res, next) => {
       isConnected = true;
       next();
     } catch (err) {
-      console.error("❌ Database connection error:", err);
+      console.error("âŒ Database connection error:", err);
       return res.status(500).json({ error: "Database connection error" });
     }
   } else {
@@ -40,7 +41,7 @@ app.use(async (req, res, next) => {
 });
 
 /* ===============================
-   🌍 CORS CONFIG (PRODUCTION SAFE)
+   ðŸŒ CORS CONFIG (PRODUCTION SAFE)
 ================================ */
 const allowedOrigins = isDev
   ? [
@@ -61,7 +62,7 @@ const corsOptions = {
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      // ❗ DO NOT throw error (preflight break hota hai)
+      // â— DO NOT throw error (preflight break hota hai)
       callback(null, false);
     }
   },
@@ -71,17 +72,17 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options("/*", cors(corsOptions)); // ✅ Preflight handler
+app.options("/*", cors(corsOptions)); // âœ… Preflight handler
 
 /* ===============================
-   🛡️ SECURITY MIDDLEWARE
+   ðŸ›¡ï¸ SECURITY MIDDLEWARE
 ================================ */
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
 /* ===============================
-   🧾 DEV LOGGER
+   ðŸ§¾ DEV LOGGER
 ================================ */
 if (isDev) {
   app.use((req, res, next) => {
@@ -91,7 +92,7 @@ if (isDev) {
 }
 
 /* ===============================
-   🚏 ROUTES
+   ðŸš ROUTES
 ================================ */
 app.use("/api/user", authRoute);
 app.use("/api/pizzas", pizzaRoutes);
@@ -100,8 +101,9 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/coupons", couponRoutes);
 /* ===============================
-   ❤️ HEALTH CHECK
+   â¤ï¸ HEALTH CHECK
 ================================ */
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -122,20 +124,20 @@ app.get("/", (req, res) => {
 });
 
 /* ===============================
-   ❌ 404 HANDLER
+   âŒ 404 HANDLER
 ================================ */
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found" });
 });
 
 /* ===============================
-   ⚠️ GLOBAL ERROR HANDLER
+   âš ï¸ GLOBAL ERROR HANDLER
 ================================ */
 app.use((err, req, res, next) => {
   const status = err.status || 500;
 
   if (isDev) {
-    console.error("❌ ERROR:", err.message);
+    console.error("âŒ ERROR:", err.message);
     console.error(err.stack);
   }
 
@@ -145,28 +147,28 @@ app.use((err, req, res, next) => {
 });
 
 /* ===============================
-   🚀 SERVER START
+   ðŸš€ SERVER START
 ================================ */
 const port = process.env.PORT || 5000;
 
 const server = app.listen(port, () => {
-  console.log(`✅ Server running on port ${port} (${NODE_ENV})`);
+  console.log(`âœ… Server running on port ${port} (${NODE_ENV})`);
 });
 
 /* ===============================
-   🔻 GRACEFUL SHUTDOWN
+   ðŸ”» GRACEFUL SHUTDOWN
 ================================ */
 process.on("SIGTERM", () => {
-  console.log("📛 SIGTERM received, shutting down...");
+  console.log("ðŸ“› SIGTERM received, shutting down...");
   server.close(() => process.exit(0));
 });
 
 process.on("SIGINT", () => {
-  console.log("📛 SIGINT received, shutting down...");
+  console.log("ðŸ“› SIGINT received, shutting down...");
   server.close(() => process.exit(0));
 });
 
 process.on("unhandledRejection", (reason) => {
-  console.error("❌ Unhandled Rejection:", reason);
+  console.error("âŒ Unhandled Rejection:", reason);
   process.exit(1);
 });

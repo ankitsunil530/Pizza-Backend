@@ -21,6 +21,9 @@ const orderSchema = new mongoose.Schema(
     deliveryFee: { type: Number, default: 0 },
     totalAmount: { type: Number, required: true },
 
+    discount: { type: Number, default: 0 },
+    couponCode: { type: String, default: null },
+
     paymentMethod: {
       type: String,
       enum: ["cod", "online"],
