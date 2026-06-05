@@ -43,6 +43,8 @@ const couponSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
 
     isPublic: { type: Boolean, default: true },
+
+    maxUsagePerUser: { type: Number, default: 1, min: 0 },
   },
   { timestamps: true }
 );

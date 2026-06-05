@@ -1,5 +1,6 @@
 import asyncHandler from "express-async-handler";
 import Coupon from "../models/Coupon.js";
+import Order from "../models/Order.js";
 
 /**
  * Core redemption engine -- the single source of truth for coupon math.
@@ -9,7 +10,7 @@ import Coupon from "../models/Coupon.js";
  * All discount calculation happens here on the server. Callers never trust
  * any client-supplied amount; they pass the server-computed subtotal only.
  */
-export const evaluateCoupon = (coupon, subtotal) => {
+export const evaluateCoupon = (coupon, subtotal, userUsageCount = 0) => {
   if (!coupon) return { ok: false, reason: "Coupon not found" };
   if (!coupon.isActive) return { ok: false, reason: "This coupon is not active" };
 
@@ -19,6 +20,10 @@ export const evaluateCoupon = (coupon, subtotal) => {
 
   if (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit) {
     return { ok: false, reason: "This coupon has reached its usage limit" };
+  }
+
+  if (coupon.maxUsagePerUser > 0 && userUsageCount >= coupon.maxUsagePerUser) {
+    return { ok: false, reason: "You have reached the redemption limit for this coupon" };
   }
 
   const numericSubtotal = Number(subtotal) || 0;
@@ -69,8 +74,29 @@ export const getAvailableCoupons = asyncHandler(async (req, res) => {
       ]
     }
   }).sort("-createdAt");
+
+  // Retrieve count of coupon redemptions for this user in non-cancelled orders
+  const orders = await Order.find({
+    user: req.user._id,
+    couponCode: { $ne: null },
+    orderStatus: { $ne: "cancelled" }
+  });
+
+  const couponCounts = {};
+  orders.forEach((o) => {
+    if (o.couponCode) {
+      const code = String(o.couponCode).trim().toUpperCase();
+      couponCounts[code] = (couponCounts[code] || 0) + 1;
+    }
+  });
+
+  const couponsData = coupons.map((c) => {
+    const couponObj = c.toObject();
+    couponObj.userUsageCount = couponCounts[c.code] || 0;
+    return couponObj;
+  });
   
-  res.json({ success: true, count: coupons.length, data: coupons });
+  res.json({ success: true, count: coupons.length, data: couponsData });
 });
 
 /**
@@ -89,8 +115,18 @@ export const validateCoupon = asyncHandler(async (req, res) => {
   }
 
   const coupon = await Coupon.findOne({ code: String(code).trim().toUpperCase() });
+  if (!coupon) {
+    res.status(404);
+    throw new Error("Coupon not found");
+  }
 
-  const result = evaluateCoupon(coupon, subtotal);
+  const userUsageCount = await Order.countDocuments({
+    user: req.user._id,
+    couponCode: coupon.code,
+    orderStatus: { $ne: "cancelled" }
+  });
+
+  const result = evaluateCoupon(coupon, subtotal, userUsageCount);
 
   if (!result.ok) {
     res.status(400);
@@ -133,6 +169,7 @@ export const createCoupon = asyncHandler(async (req, res) => {
     expiresAt,
     isActive,
     isPublic,
+    maxUsagePerUser,
   } = req.body;
 
   if (!code || !String(code).trim()) {
@@ -175,6 +212,7 @@ export const createCoupon = asyncHandler(async (req, res) => {
     expiresAt: expiresAt ? new Date(expiresAt) : null,
     isActive: isActive !== undefined ? Boolean(isActive) : true,
     isPublic: isPublic !== undefined ? Boolean(isPublic) : true,
+    maxUsagePerUser: maxUsagePerUser !== undefined ? Math.max(0, Number(maxUsagePerUser) || 0) : 1,
   });
 
   res.status(201).json({ success: true, data: coupon });
@@ -198,6 +236,7 @@ export const updateCoupon = asyncHandler(async (req, res) => {
     "expiresAt",
     "isActive",
     "isPublic",
+    "maxUsagePerUser",
   ];
 
   if (req.body.discountType && !["percent", "flat"].includes(req.body.discountType)) {
