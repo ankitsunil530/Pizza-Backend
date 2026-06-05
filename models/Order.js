@@ -13,24 +13,47 @@ const orderItemSchema = new mongoose.Schema({
 
 const orderSchema = new mongoose.Schema(
   {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
 
     items: [orderItemSchema],
 
-    subtotal: { type: Number, default: 0 },
-    deliveryFee: { type: Number, default: 0 },
-    totalAmount: { type: Number, required: true },
+    subtotal: {
+      type: Number,
+      default: 0,
+    },
 
-    discount: { type: Number, default: 0 },
-    couponCode: { type: String, default: null },
+    deliveryFee: {
+      type: Number,
+      default: 0,
+    },
 
-    // Razorpay linkage. Bound when the Razorpay order is created so that
-    // payment verification can confirm a payment actually belongs to this
-    // order (the signature alone only proves the payment is authentic, not
-    // that it is for this order or amount). razorpayPaymentId is unique so a
-    // single payment can settle exactly one order (replay protection).
-    razorpayOrderId: { type: String, default: null, index: true },
-    razorpayPaymentId: { type: String, default: null, unique: true, sparse: true },
+    totalAmount: {
+      type: Number,
+      required: true,
+    },
+
+    discount: {
+      type: Number,
+      default: 0,
+    },
+
+    couponCode: {
+      type: String,
+      default: null,
+    },
+
+    // Razorpay linkage
+    razorpayOrderId: {
+      type: String,
+      index: true,
+    },
+
+    razorpayPaymentId: {
+      type: String,
+    },
 
     paymentMethod: {
       type: String,
@@ -58,7 +81,23 @@ const orderSchema = new mongoose.Schema(
       required: true,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
+);
+
+// Unique Razorpay payment IDs only when present
+orderSchema.index(
+  { razorpayPaymentId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      razorpayPaymentId: {
+        $exists: true,
+        $type: "string",
+      },
+    },
+  }
 );
 
 export default mongoose.model("Order", orderSchema);
