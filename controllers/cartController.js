@@ -98,6 +98,18 @@ export const addToCart = async (req, res) => {
       resolvedToppings.push({ _id: doc._id, name: doc.name, price: doc.price });
     }
 
+    // Validate quantity exactly like updateCartItemQuantity does: a whole
+    // number between 1 and 10. The client price is recomputed server-side, but
+    // qty was previously trusted as-is (Number(item.qty) || 1). A direct API
+    // call could therefore send a negative qty -- which subtracts from the
+    // order subtotal in createOrder (sum + price * qty), yielding free or
+    // near-free items -- or a fractional/unbounded qty. The frontend always
+    // sends a sane value; the endpoint must not rely on that.
+    const requestedQty = Number(item.qty);
+    if (!Number.isInteger(requestedQty) || requestedQty < 1 || requestedQty > 10) {
+      return res.status(400).json({ error: "Quantity must be between 1 and 10" });
+    }
+
     // Trusted price — computed only from server data.
     const price = computeUnitPrice(
       pizza.basePrice,
@@ -116,7 +128,7 @@ export const addToCart = async (req, res) => {
       crust: { name: resolvedCrust.name, price: resolvedCrust.price },
       toppings: resolvedToppings,
       price,
-      qty: Number(item.qty) || 1,
+      qty: requestedQty,
     };
 
     let cart = await Cart.findOne({ user: req.user._id });
@@ -142,7 +154,9 @@ export const addToCart = async (req, res) => {
     });
 
     if (existingItem) {
-      existingItem.qty += trustedItem.qty;
+      // Cap the combined quantity at 10 to match the per-item limit enforced
+      // by updateCartItemQuantity (so 8 + 5 becomes 10, never 13).
+      existingItem.qty = Math.min(10, existingItem.qty + trustedItem.qty);
     } else {
       cart.items.push(trustedItem);
     }
