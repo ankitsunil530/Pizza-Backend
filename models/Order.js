@@ -24,6 +24,14 @@ const orderSchema = new mongoose.Schema(
     discount: { type: Number, default: 0 },
     couponCode: { type: String, default: null },
 
+    // Razorpay linkage. Bound when the Razorpay order is created so that
+    // payment verification can confirm a payment actually belongs to this
+    // order (the signature alone only proves the payment is authentic, not
+    // that it is for this order or amount). razorpayPaymentId is unique so a
+    // single payment can settle exactly one order (replay protection).
+    razorpayOrderId: { type: String, default: null, index: true },
+    razorpayPaymentId: { type: String, default: null, unique: true, sparse: true },
+
     paymentMethod: {
       type: String,
       enum: ["cod", "online"],

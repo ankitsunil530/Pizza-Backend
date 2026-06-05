@@ -22,6 +22,12 @@ export const createRazorpayOrder = async (req, res) => {
 
     const razorpayOrder = await razorpay.orders.create(options);
 
+    // Bind this Razorpay order to the local order so verifyPayment can
+    // confirm a later payment actually belongs to this order. Re-initiating
+    // payment rebinds to the latest Razorpay order.
+    order.razorpayOrderId = razorpayOrder.id;
+    await order.save();
+
     res.json({
       success: true,
       order: razorpayOrder,
@@ -52,7 +58,34 @@ export const verifyPayment = async (req, res) => {
     const order = await Order.findOne({ _id: orderId, user: req.user._id });
     if (!order) return res.status(404).json({ error: "Order not found" });
 
+    // Idempotency: a retried verify for an already-paid order is a no-op success
+    // (prevents double cart-clear / re-processing on a duplicate handler call).
+    if (order.paymentStatus === "paid") {
+      return res.json({ success: true, data: order });
+    }
+
+    // Bind the payment to THIS order. A valid signature only proves the
+    // (order_id, payment_id) pair is an authentic Razorpay payment -- it does
+    // NOT prove the payment was made for this order or for the right amount.
+    // Without this check, a genuine cheap payment (e.g. a real Re.1 order the
+    // attacker paid) could be replayed against an expensive order to mark it
+    // paid. The amount is implicitly enforced too: the bound Razorpay order was
+    // created server-side with this order's exact total.
+    if (!order.razorpayOrderId || order.razorpayOrderId !== razorpay_order_id) {
+      return res.status(400).json({ error: "Payment does not match this order" });
+    }
+
+    // Replay guard: a given Razorpay payment may settle exactly one order.
+    const alreadyUsed = await Order.findOne({
+      razorpayPaymentId: razorpay_payment_id,
+      _id: { $ne: order._id },
+    });
+    if (alreadyUsed) {
+      return res.status(400).json({ error: "Payment already used for another order" });
+    }
+
     order.paymentStatus = "paid";
+    order.razorpayPaymentId = razorpay_payment_id;
     await order.save();
 
     const cart = await Cart.findOne({ user: req.user._id });

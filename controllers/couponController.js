@@ -26,7 +26,7 @@ export const evaluateCoupon = (coupon, subtotal) => {
   if (numericSubtotal < (coupon.minOrderAmount || 0)) {
     return {
       ok: false,
-      reason: `Minimum order of \u20B9${coupon.minOrderAmount} required for this coupon`,
+      reason: `Minimum order of ₹${coupon.minOrderAmount} required for this coupon`,
     };
   }
 
@@ -51,6 +51,27 @@ export const evaluateCoupon = (coupon, subtotal) => {
 
   return { ok: true, discount, finalTotal };
 };
+
+// GET /api/coupons/available -- list available active coupons for users
+export const getAvailableCoupons = asyncHandler(async (req, res) => {
+  const now = new Date();
+  const coupons = await Coupon.find({
+    isActive: true,
+    isPublic: true,
+    $or: [
+      { expiresAt: null },
+      { expiresAt: { $gt: now } }
+    ],
+    $expr: {
+      $or: [
+        { $eq: ["$usageLimit", 0] },
+        { $lt: ["$usedCount", "$usageLimit"] }
+      ]
+    }
+  }).sort("-createdAt");
+  
+  res.json({ success: true, count: coupons.length, data: coupons });
+});
 
 /**
  * POST /api/coupons/validate  (user, protected)
@@ -111,6 +132,7 @@ export const createCoupon = asyncHandler(async (req, res) => {
     usageLimit,
     expiresAt,
     isActive,
+    isPublic,
   } = req.body;
 
   if (!code || !String(code).trim()) {
@@ -152,6 +174,7 @@ export const createCoupon = asyncHandler(async (req, res) => {
     usageLimit: Math.max(0, Number(usageLimit) || 0),
     expiresAt: expiresAt ? new Date(expiresAt) : null,
     isActive: isActive !== undefined ? Boolean(isActive) : true,
+    isPublic: isPublic !== undefined ? Boolean(isPublic) : true,
   });
 
   res.status(201).json({ success: true, data: coupon });
@@ -174,6 +197,7 @@ export const updateCoupon = asyncHandler(async (req, res) => {
     "usageLimit",
     "expiresAt",
     "isActive",
+    "isPublic",
   ];
 
   if (req.body.discountType && !["percent", "flat"].includes(req.body.discountType)) {
