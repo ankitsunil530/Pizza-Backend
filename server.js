@@ -12,6 +12,7 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import dotenv from "dotenv";
 import couponRoutes from "./routes/couponRoutes.js";
+import loyaltyRoutes from "./routes/loyaltyRoutes.js";
 dotenv.config();
 
 
@@ -102,6 +103,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/coupons", couponRoutes);
+app.use("/api/loyalty", loyaltyRoutes);
 /* ===============================
    â¤ï¸ HEALTH CHECK
 ================================ */

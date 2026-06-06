@@ -45,6 +45,19 @@ const orderSchema = new mongoose.Schema(
       default: null,
     },
 
+    // Loyalty points earned on this order (credited when delivered) and points
+    // redeemed against it at checkout. Stored per-order so receipts can show them
+    // and a cancellation can reverse exactly what moved.
+    pointsEarned: {
+      type: Number,
+      default: 0,
+    },
+
+    pointsRedeemed: {
+      type: Number,
+      default: 0,
+    },
+
     // Razorpay linkage
     razorpayOrderId: {
       type: String,

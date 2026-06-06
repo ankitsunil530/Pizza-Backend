@@ -29,6 +29,14 @@ const userSchema = new mongoose.Schema(
       enum: ["active", "inactive"],
       default: "active",
     },
+
+    // Loyalty programme balance. Authoritative point total for the user;
+    // individual movements are recorded in the LoyaltyTransaction ledger.
+    loyaltyPoints: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   { timestamps: true }
 );
