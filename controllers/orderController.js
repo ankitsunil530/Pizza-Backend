@@ -11,6 +11,60 @@ import {
   reverseLoyaltyForOrder,
 } from "./loyaltyController.js";
 
+/**
+ * Release the coupon usage slot an order claimed, mirroring the rollback in
+ * createOrder's catch block. The usedCount: { $gt: 0 } guard floors the counter
+ * at zero so a release can never drive it negative. Best-effort: a release
+ * failure is logged and swallowed so it can never fail the cancellation itself.
+ */
+const releaseCouponForOrder = async (order) => {
+  if (!order || !order.couponCode) return;
+  try {
+    await Coupon.updateOne(
+      { code: order.couponCode, usedCount: { $gt: 0 } },
+      { $inc: { usedCount: -1 } }
+    );
+  } catch (err) {
+    console.error("Failed to release coupon slot on cancellation:", err);
+  }
+};
+
+/**
+ * Cancel an order exactly once and reverse everything it claimed (the coupon
+ * usage slot and any loyalty points). The atomic findOneAndUpdate transition
+ * (status != "cancelled" -> "cancelled") guarantees only the first caller
+ * observes the transition, so concurrent or repeated cancels can never
+ * double-release a coupon slot or double-refund points. claimFilter scopes WHO
+ * may cancel and FROM WHICH statuses (admin: any order by id; user: only their
+ * own order while still cancellable).
+ *
+ * Returns the cancelled order, or null if nothing matched the claim (not found,
+ * not owned, no longer cancellable, or already cancelled).
+ */
+const performCancellation = async (claimFilter) => {
+  // new: false returns the pre-update document, whose couponCode / pointsRedeemed
+  // / pointsEarned are exactly what the reversals below operate on.
+  const preDoc = await Order.findOneAndUpdate(
+    { $and: [claimFilter, { orderStatus: { $ne: "cancelled" } }] },
+    { $set: { orderStatus: "cancelled" } },
+    { new: false }
+  );
+  if (!preDoc) return null;
+
+  // The cancellation has already committed; the reversals are best-effort and
+  // must not surface as a failed cancel. releaseCouponForOrder swallows its own
+  // errors and reverseLoyaltyForOrder is idempotent (ledger-guarded).
+  try {
+    await releaseCouponForOrder(preDoc);
+    await reverseLoyaltyForOrder(preDoc);
+  } catch (sideErr) {
+    console.error("Reversal after cancellation failed:", sideErr);
+  }
+
+  const order = await Order.findById(preDoc._id);
+  return order || preDoc;
+};
+
 export const createOrder = async (req, res) => {
   try {
     const { address, phone, paymentMethod = "cod", deliveryFee = 0, couponCode, redeemPoints = 0 } = req.body;
@@ -262,6 +316,23 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(400).json({ error: "Invalid order status" });
     }
 
+    // Cancellation is a full reversal (coupon slot + loyalty) that must run
+    // exactly once, so route it through the shared atomic helper instead of a
+    // plain status write. This also closes the slot leak where a cancelled
+    // coupon order never released its global usedCount.
+    if (req.body.status === "cancelled") {
+      const cancelled = await performCancellation({ _id: req.params.id });
+      if (cancelled) {
+        return res.json({ success: true, data: cancelled });
+      }
+      // Nothing claimed: disambiguate not-found vs already-cancelled.
+      const existing = await Order.findById(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      return res.json({ success: true, data: existing }); // already cancelled
+    }
+
     const order = await Order.findById(req.params.id);
 
     if (!order) {
@@ -272,14 +343,12 @@ export const updateOrderStatus = async (req, res) => {
     order.orderStatus = req.body.status;
     await order.save();
 
-    // Loyalty side-effects on genuine status transitions. Both helpers are
-    // idempotent, so a repeated set-to-same-status or a retry cannot double-apply.
-    // A side-effect failure must not fail the status change itself.
+    // Loyalty earn on a genuine delivered transition. awardLoyaltyForDeliveredOrder
+    // is idempotent, so a repeated set-to-same-status or a retry cannot
+    // double-apply. A side-effect failure must not fail the status change itself.
     try {
       if (req.body.status === "delivered" && previousStatus !== "delivered") {
         await awardLoyaltyForDeliveredOrder(order);
-      } else if (req.body.status === "cancelled" && previousStatus !== "cancelled") {
-        await reverseLoyaltyForOrder(order);
       }
     } catch (loyaltyErr) {
       console.error("Loyalty update after order status change failed:", loyaltyErr);
@@ -288,5 +357,57 @@ export const updateOrderStatus = async (req, res) => {
     res.json({ success: true, data: order });
   } catch (error) {
     res.status(500).json({ error: "Failed to update order status" });
+  }
+};
+
+/**
+ * User-facing self-service cancellation. A customer may cancel their OWN order
+ * only while it is still "placed" or "confirmed" (before it leaves the
+ * kitchen). Runs the same atomic, exactly-once reversal as the admin path
+ * (coupon slot release + loyalty reversal).
+ */
+export const cancelMyOrder = async (req, res) => {
+  try {
+    // Scope strictly to the caller's own order so a user can never cancel
+    // someone else's (closes the IDOR an admin-only route would leave open).
+    const existing = await Order.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    // Already cancelled -> idempotent success, no double reversal.
+    if (existing.orderStatus === "cancelled") {
+      return res.json({ success: true, data: existing });
+    }
+
+    const cancellable = ["placed", "confirmed"];
+    if (!cancellable.includes(existing.orderStatus)) {
+      return res
+        .status(400)
+        .json({ error: "This order can no longer be cancelled" });
+    }
+
+    // Atomic claim scoped to the user AND the cancellable statuses, so a status
+    // change racing this request cannot let an order that just shipped be
+    // cancelled, and a concurrent cancel cannot double-release the coupon slot.
+    const cancelled = await performCancellation({
+      _id: req.params.id,
+      user: req.user._id,
+      orderStatus: { $in: cancellable },
+    });
+
+    if (!cancelled) {
+      return res
+        .status(400)
+        .json({ error: "This order can no longer be cancelled" });
+    }
+
+    res.json({ success: true, data: cancelled });
+  } catch (error) {
+    console.error("Cancel order error:", error);
+    res.status(500).json({ error: "Failed to cancel order" });
   }
 };
