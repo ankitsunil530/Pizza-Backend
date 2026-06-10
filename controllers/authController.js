@@ -106,3 +106,20 @@ export const deleteUser = asyncHandler(async (req, res) => {
     message: "User removed",
   });
 });
+
+// ================= LOYALTY POINTS =================
+export const getUserLoyalty = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id).select("loyaltyPoints loyaltyHistory");
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  res.json({
+    success: true,
+    data: {
+      loyaltyPoints: user.loyaltyPoints || 0,
+      loyaltyHistory: user.loyaltyHistory || [],
+    },
+  });
+});

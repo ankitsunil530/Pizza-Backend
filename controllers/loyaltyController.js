@@ -85,7 +85,7 @@ export const awardLoyaltyForDeliveredOrder = async (order) => {
       points,
       order: order._id,
       balanceAfter: 0, // filled in once the new balance is known
-      description: `Earned on delivered order ${order._id}`,
+      description: `Earned on order ${order._id}`,
     });
   } catch (err) {
     if (err && err.code === 11000) return; // already earned for this order
@@ -177,6 +177,7 @@ export const getMyLoyalty = asyncHandler(async (req, res) => {
       balance: user ? user.loyaltyPoints : 0,
       settings: {
         isEnabled: setting.isEnabled,
+        pointsPerRupee: setting.pointsPerRupee,
         rupeePerPoint: setting.rupeePerPoint,
         minRedeemPoints: setting.minRedeemPoints,
         maxRedeemPercent: setting.maxRedeemPercent,

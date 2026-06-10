@@ -6,6 +6,7 @@ import {
   userProfile,
   getAllUsers,
   deleteUser,
+  getUserLoyalty,
 } from "../controllers/authController.js";
 
 import protect from "../middlewares/authWebToken.js";
@@ -20,6 +21,7 @@ router.post("/logout", protect, logoutUser);
 
 // 👤 User
 router.get("/profile", protect, userProfile);
+router.get("/loyalty", protect, getUserLoyalty);
 
 // 👑 Admin only
 router.get("/users", protect, admin, getAllUsers);

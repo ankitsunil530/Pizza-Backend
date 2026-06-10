@@ -265,6 +265,11 @@ export const createOrder = async (req, res) => {
     if (paymentMethod === "cod") {
       cart.items = [];
       await cart.save();
+      try {
+        await awardLoyaltyForDeliveredOrder(order);
+      } catch (loyaltyErr) {
+        console.error("Failed to award loyalty points for COD order:", loyaltyErr);
+      }
     }
 
     res.status(201).json({

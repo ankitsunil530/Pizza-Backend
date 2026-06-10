@@ -3,6 +3,7 @@ import crypto from "crypto";
 import razorpay, { assertRazorpayReady, getRazorpayMode } from "../config/razorpay.js";
 import Cart from "../models/Cart.js";
 import Order from "../models/Order.js";
+import { awardLoyaltyForDeliveredOrder } from "./loyaltyController.js";
 
 export const createRazorpayOrder = async (req, res) => {
   try {
@@ -87,6 +88,13 @@ export const verifyPayment = async (req, res) => {
     order.paymentStatus = "paid";
     order.razorpayPaymentId = razorpay_payment_id;
     await order.save();
+
+    // Award loyalty points immediately for paid online orders
+    try {
+      await awardLoyaltyForDeliveredOrder(order);
+    } catch (loyaltyErr) {
+      console.error("Failed to award loyalty points after online payment verification:", loyaltyErr);
+    }
 
     const cart = await Cart.findOne({ user: req.user._id });
     if (cart) {

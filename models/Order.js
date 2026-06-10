@@ -93,6 +93,18 @@ const orderSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    loyaltyPointsRedeemed: {
+      type: Number,
+      default: 0,
+    },
+    loyaltyPointsEarned: {
+      type: Number,
+      default: 0,
+    },
+    loyaltyPointsCredited: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
