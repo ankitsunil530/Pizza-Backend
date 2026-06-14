@@ -67,7 +67,7 @@ const performCancellation = async (claimFilter) => {
 
 export const createOrder = async (req, res) => {
   try {
-    const { address, phone, paymentMethod = "cod", deliveryFee = 0, couponCode, redeemPoints = 0 } = req.body;
+    const { address, phone, paymentMethod = "cod", couponCode, redeemPoints = 0 } = req.body;
 
     if (!address || address.trim().length < 12) {
       return res.status(400).json({ error: "Complete delivery address is required" });
@@ -88,7 +88,14 @@ export const createOrder = async (req, res) => {
     }
 
     const subtotal = cart.items.reduce((sum, item) => sum + item.price * item.qty, 0);
-    const safeDeliveryFee = Math.max(0, Number(deliveryFee) || 0);
+    // Delivery fee is computed server-side and never accepted from the client.
+    // A configurable flat rate applies unless the subtotal exceeds the free-delivery
+    // threshold — matching the rule shown in the frontend cart and checkout pages.
+    // Override defaults by setting DELIVERY_FEE and FREE_DELIVERY_THRESHOLD in .env.
+    const DELIVERY_FEE = Number(process.env.DELIVERY_FEE) || 40;
+    const FREE_DELIVERY_THRESHOLD = Number(process.env.FREE_DELIVERY_THRESHOLD) || 499;
+    const safeDeliveryFee =
+      subtotal > FREE_DELIVERY_THRESHOLD || subtotal === 0 ? 0 : DELIVERY_FEE;
 
     // Points and coupons are mutually exclusive (Phase 1): a user applies one or
     // the other, never both. Reject early if both are supplied.
