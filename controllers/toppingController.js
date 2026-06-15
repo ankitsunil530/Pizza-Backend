@@ -1,23 +1,29 @@
+import asyncHandler from "express-async-handler";
+import mongoose from "mongoose";
 import Topping from "../models/Topping.js";
 
 // GET all toppings
-export const getAllToppings = async (req, res) => {
+export const getAllToppings = asyncHandler(async (req, res) => {
   const toppings = await Topping.find({ isAvailable: true });
   res.json({
     success: true,
     count: toppings.length,
     data: toppings,
   });
-};
+});
 
 // CREATE topping (Admin)
-export const createTopping = async (req, res) => {
+export const createTopping = asyncHandler(async (req, res) => {
   const topping = await Topping.create(req.body);
   res.status(201).json({ success: true, data: topping });
-};
+});
 
 // UPDATE topping (Admin)
-export const updateTopping = async (req, res) => {
+export const updateTopping = asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ error: "Invalid topping id" });
+  }
+
   const topping = await Topping.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
   });
@@ -27,10 +33,14 @@ export const updateTopping = async (req, res) => {
   }
 
   res.json({ success: true, data: topping });
-};
+});
 
 // DELETE topping (Admin)
-export const deleteTopping = async (req, res) => {
+export const deleteTopping = asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ error: "Invalid topping id" });
+  }
+
   const topping = await Topping.findById(req.params.id);
 
   if (!topping) {
@@ -40,4 +50,4 @@ export const deleteTopping = async (req, res) => {
   await topping.deleteOne();
 
   res.json({ success: true, message: "Topping deleted" });
-};
+});

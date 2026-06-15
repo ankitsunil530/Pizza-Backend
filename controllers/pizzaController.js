@@ -1,17 +1,23 @@
+import asyncHandler from "express-async-handler";
+import mongoose from "mongoose";
 import Pizza from "../models/Pizza.js";
 
 // GET all pizzas
-export const getAllPizzas = async (req, res) => {
+export const getAllPizzas = asyncHandler(async (req, res) => {
   const pizzas = await Pizza.find();
   res.json({
     success: true,
     count: pizzas.length,
     data: pizzas,
   });
-};
+});
 
 // GET single pizza
-export const getPizzaById = async (req, res) => {
+export const getPizzaById = asyncHandler(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ error: "Invalid pizza id" });
+  }
+
   const pizza = await Pizza.findById(req.params.id);
 
   if (!pizza) {
@@ -19,13 +25,13 @@ export const getPizzaById = async (req, res) => {
   }
 
   res.json({ success: true, data: pizza });
-};
+});
 
 // CREATE pizza (Admin only)
-export const createPizza = async (req, res) => {
+export const createPizza = asyncHandler(async (req, res) => {
   const pizza = await Pizza.create(req.body);
   res.status(201).json({ success: true, data: pizza });
-};
+});
 
 // ADD / UPDATE review (Logged-in users)
 export const addPizzaReview = async (req, res) => {

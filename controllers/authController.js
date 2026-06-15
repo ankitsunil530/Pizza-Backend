@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import asyncHandler from "express-async-handler";
 import User from "../models/User.js";
 import generateToken from "../utils/generateToken.js";
@@ -92,11 +93,34 @@ export const getAllUsers = asyncHandler(async (req, res) => {
 
 // ================= ADMIN: DELETE USER =================
 export const deleteUser = asyncHandler(async (req, res) => {
+  // Guard 1: reject malformed ids before they reach Mongoose (avoids a CastError 500)
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    res.status(400);
+    throw new Error("Invalid user id");
+  }
+
+  // Guard 2: an admin cannot delete their own account (prevents self-lockout)
+  if (req.params.id === req.user._id.toString()) {
+    res.status(400);
+    throw new Error("You cannot delete your own account");
+  }
+
   const user = await User.findById(req.params.id);
 
   if (!user) {
     res.status(404);
     throw new Error("User not found");
+  }
+
+  // Guard 3: never delete the last remaining admin (keeps the system manageable)
+  if (user.role === "admin") {
+    const adminCount = await User.countDocuments({ role: "admin" });
+    if (adminCount <= 1) {
+      res.status(400);
+      throw new Error(
+        "Cannot delete the last admin account — promote another user first"
+      );
+    }
   }
 
   await user.deleteOne();

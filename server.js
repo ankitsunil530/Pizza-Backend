@@ -136,7 +136,7 @@ app.use((req, res) => {
    âš ï¸ GLOBAL ERROR HANDLER
 ================================ */
 app.use((err, req, res, next) => {
-  const status = err.status || 500;
+  const status = err.status || (res.statusCode >= 400 ? res.statusCode : 500);
 
   if (isDev) {
     console.error("âŒ ERROR:", err.message);
