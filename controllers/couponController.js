@@ -230,8 +230,6 @@ export const updateCoupon = asyncHandler(async (req, res) => {
     "description",
     "discountType",
     "discountValue",
-    "minOrderAmount",
-    "maxDiscount",
     "usageLimit",
     "expiresAt",
     "isActive",
@@ -244,13 +242,20 @@ export const updateCoupon = asyncHandler(async (req, res) => {
     throw new Error("discountType must be 'percent' or 'flat'");
   }
 
-  if (
-  req.body.discountType === "percent" &&
-  Number(req.body.discountValue) > 100
-) {
-  res.status(400);
-  throw new Error("A percentage discount cannot exceed 100");
-}
+  // Percentage cap — mirror createCoupon. Evaluate against the EFFECTIVE
+  // type/value (the incoming field when present, otherwise the stored one)
+  // so the cap is enforced even when only discountType or only discountValue
+  // is being changed (e.g. PUT { discountValue: 150 } on a percent coupon).
+  const effectiveType = req.body.discountType ?? coupon.discountType;
+  const effectiveValue =
+    req.body.discountValue !== undefined
+      ? Number(req.body.discountValue)
+      : coupon.discountValue;
+
+  if (effectiveType === "percent" && effectiveValue > 100) {
+    res.status(400);
+    throw new Error("A percentage discount cannot exceed 100");
+  }
 
   // Allow updating the code, but keep it normalized and unique.
   if (req.body.code !== undefined) {
@@ -276,6 +281,16 @@ export const updateCoupon = asyncHandler(async (req, res) => {
       }
     }
   });
+
+  // Non-negative coercion — mirror createCoupon. Floor at 0 (instead of
+  // letting the schema's min:0 reject the request) so update and create
+  // treat negative / non-numeric amounts identically.
+  if (req.body.minOrderAmount !== undefined) {
+    coupon.minOrderAmount = Math.max(0, Number(req.body.minOrderAmount) || 0);
+  }
+  if (req.body.maxDiscount !== undefined) {
+    coupon.maxDiscount = Math.max(0, Number(req.body.maxDiscount) || 0);
+  }
 
   await coupon.save();
   res.json({ success: true, data: coupon });
