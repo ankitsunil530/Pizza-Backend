@@ -83,7 +83,7 @@ export const getAdminStats = async (req, res) => {
         { $unwind: "$items" },
         {
           $group: {
-            _id: "$items.name",
+            
             quantity: { $sum: "$items.qty" },
             revenue: { $sum: { $multiply: ["$items.price", "$items.qty"] } },
           },

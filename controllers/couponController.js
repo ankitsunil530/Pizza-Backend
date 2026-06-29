@@ -244,13 +244,13 @@ export const updateCoupon = asyncHandler(async (req, res) => {
     throw new Error("discountType must be 'percent' or 'flat'");
   }
 
-  if (req.body.discountValue !== undefined) {
-    const v = Number(req.body.discountValue);
-    if (!Number.isFinite(v) || v <= 0) {
-      res.status(400);
-      throw new Error("discountValue must be a positive number");
-    }
-  }
+  if (
+  req.body.discountType === "percent" &&
+  Number(req.body.discountValue) > 100
+) {
+  res.status(400);
+  throw new Error("A percentage discount cannot exceed 100");
+}
 
   // Allow updating the code, but keep it normalized and unique.
   if (req.body.code !== undefined) {
